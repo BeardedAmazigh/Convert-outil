@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Convertisseur Voirol Unifié Nord → Google Earth</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.2/proj4.js"></script>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --ok: #047857;
+      --error: #b91c1c;
+      --shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #eef3ff 0%, var(--bg) 100%);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .wrap {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 32px 18px 48px;
+    }
+
+    .hero {
+      margin-bottom: 22px;
+    }
+
+    h1 {
+      font-size: clamp(1.7rem, 2.8vw, 2.5rem);
+      line-height: 1.1;
+      margin: 0 0 10px;
+      letter-spacing: -0.02em;
+    }
+
+    .subtitle {
+      margin: 0;
+      color: var(--muted);
+      font-size: 1rem;
+      line-height: 1.6;
+      max-width: 780px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1.05fr 0.95fr;
+      gap: 20px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 22px;
+    }
+
+    .card h2 {
+      margin: 0 0 16px;
+      font-size: 1.1rem;
+    }
+
+    .form-grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.94rem;
+      font-weight: 600;
+      margin-bottom: 7px;
+    }
+
+    input {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 14px;
+      font-size: 1rem;
+      outline: none;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      background: #fff;
+    }
+
+    input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 12px;
+      padding: 13px 16px;
+      font-size: 0.98rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.08s ease, background 0.2s ease, opacity 0.2s ease;
+    }
+
+    button:active { transform: translateY(1px); }
+
+    .primary {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .primary:hover { background: var(--accent-hover); }
+
+    .secondary {
+      background: #eef2ff;
+      color: #1e3a8a;
+    }
+
+    .ghost {
+      background: #f3f4f6;
+      color: #374151;
+    }
+
+    .results {
+      display: grid;
+      gap: 14px;
+    }
+
+    .result-box {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 15px;
+      background: #fbfcfe;
+    }
+
+    .k {
+      display: block;
+      color: var(--muted);
+      font-size: 0.84rem;
+      margin-bottom: 6px;
+    }
+
+    .v {
+      font-size: 1.1rem;
+      font-weight: 700;
+      word-break: break-word;
+    }
+
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    .status {
+      margin-top: 14px;
+      min-height: 24px;
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+
+    .status.ok { color: var(--ok); }
+    .status.error { color: var(--error); }
+
+    .note {
+      margin-top: 18px;
+      padding: 14px 15px;
+      border-radius: 14px;
+      background: #fff7ed;
+      border: 1px solid #fed7aa;
+      color: #9a3412;
+      line-height: 1.55;
+      font-size: 0.93rem;
+    }
+
+    .footer-note {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 0.88rem;
+      line-height: 1.55;
+    }
+
+    a.link {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    a.link:hover { text-decoration: underline; }
+
+    @media (max-width: 820px) {
+      .grid { grid-template-columns: 1fr; }
+      .wrap { padding: 22px 14px 34px; }
+      .card { padding: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <h1>Convertisseur vers Google Earth</h1>
+      <p class="subtitle">
+        Conversion automatique depuis le système <strong>Nord Sahara 1959 / Voirol Unifié Nord Algérie (EPSG:30791)</strong>
+        vers les coordonnées <strong>WGS84</strong> utilisables dans Google Earth et Google Maps.
+      </p>
+    </div>
+
+    <div class="grid">
+      <section class="card">
+        <h2>Coordonnées source</h2>
+        <div class="form-grid">
+          <div>
+            <label for="x">X</label>
+            <input id="x" type="number" step="any" placeholder="Ex. 927892" value="927892" />
+          </div>
+          <div>
+            <label for="y">Y</label>
+            <input id="y" type="number" step="any" placeholder="Ex. 262022" value="262022" />
+          </div>
+          <div>
+            <label for="z">Z (altitude, optionnel)</label>
+            <input id="z" type="number" step="any" placeholder="Ex. 993" value="993" />
+          </div>
+        </div>
+
+        <div class="row">
+          <button class="primary" id="convertBtn">Convertir</button>
+          <button class="secondary" id="copyBtn">Copier pour Google Earth</button>
+          <button class="ghost" id="resetBtn">Réinitialiser</button>
+        </div>
+
+        <div id="status" class="status"></div>
+
+        <div class="note">
+          Ce convertisseur est réglé sur <strong>Voirol Unifié Nord Algérie</strong>. Si vos données proviennent d’un autre système
+          (UTM, Voirol Sud, Lambert, CC, etc.), le résultat sera faux.
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Résultat WGS84</h2>
+        <div class="results">
+          <div class="result-box">
+            <span class="k">Latitude</span>
+            <div class="v mono" id="lat">—</div>
+          </div>
+          <div class="result-box">
+            <span class="k">Longitude</span>
+            <div class="v mono" id="lon">—</div>
+          </div>
+          <div class="result-box">
+            <span class="k">Format Google Earth</span>
+            <div class="v mono" id="googleEarth">—</div>
+          </div>
+          <div class="result-box">
+            <span class="k">Altitude</span>
+            <div class="v mono" id="altitude">—</div>
+          </div>
+          <div class="result-box">
+            <span class="k">Ouverture directe</span>
+            <div class="v" id="mapLink">—</div>
+          </div>
+        </div>
+
+        <p class="footer-note">
+          Astuce : dans Google Earth, collez simplement la valeur au format <span class="mono">latitude, longitude</span>.
+        </p>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    // Définition du système source : Nord Sahara 1959 / Voirol Unifié Nord Algérie (EPSG:30791)
+    proj4.defs(
+      "EPSG:30791",
+      "+proj=lcc +lat_1=36 +lat_2=33 +lat_0=35 +lon_0=2.7 +x_0=500000 +y_0=300000 +ellps=clrk80ign +pm=paris +towgs84=-73,246,227,0,0,0,0 +units=m +no_defs"
+    );
+
+    const src = "EPSG:30791";
+    const dst = "WGS84";
+
+    const els = {
+      x: document.getElementById("x"),
+      y: document.getElementById("y"),
+      z: document.getElementById("z"),
+      lat: document.getElementById("lat"),
+      lon: document.getElementById("lon"),
+      googleEarth: document.getElementById("googleEarth"),
+      altitude: document.getElementById("altitude"),
+      mapLink: document.getElementById("mapLink"),
+      status: document.getElementById("status"),
+      convertBtn: document.getElementById("convertBtn"),
+      copyBtn: document.getElementById("copyBtn"),
+      resetBtn: document.getElementById("resetBtn")
+    };
+
+    function setStatus(message, type = "") {
+      els.status.className = `status ${type}`.trim();
+      els.status.textContent = message;
+    }
+
+    function formatNum(value, decimals = 6) {
+      return Number(value).toFixed(decimals);
+    }
+
+    function toDMS(decimal, isLat) {
+      const abs = Math.abs(decimal);
+      const deg = Math.floor(abs);
+      const minFloat = (abs - deg) * 60;
+      const min = Math.floor(minFloat);
+      const sec = ((minFloat - min) * 60).toFixed(2);
+      const hemi = isLat ? (decimal >= 0 ? "N" : "S") : (decimal >= 0 ? "E" : "O");
+      return `${deg}° ${min}′ ${sec}″ ${hemi}`;
+    }
+
+    function convert() {
+      const x = parseFloat(els.x.value);
+      const y = parseFloat(els.y.value);
+      const z = els.z.value.trim() === "" ? null : parseFloat(els.z.value);
+
+      if (!Number.isFinite(x) || !Number.isFinite(y)) {
+        setStatus("Veuillez saisir des valeurs numériques valides pour X et Y.", "error");
+        return;
+      }
+
+      try {
+        const [lon, lat] = proj4(src, dst, [x, y]);
+        const latTxt = formatNum(lat, 6);
+        const lonTxt = formatNum(lon, 6);
+        const googleEarthTxt = `${latTxt}, ${lonTxt}`;
+
+        els.lat.textContent = `${latTxt}  (${toDMS(lat, true)})`;
+        els.lon.textContent = `${lonTxt}  (${toDMS(lon, false)})`;
+        els.googleEarth.textContent = googleEarthTxt;
+        els.altitude.textContent = Number.isFinite(z) ? `${z} m` : "Non renseignée";
+
+        const mapsUrl = `https://www.google.com/maps?q=${encodeURIComponent(googleEarthTxt)}`;
+        els.mapLink.innerHTML = `<a class="link" href="${mapsUrl}" target="_blank" rel="noopener noreferrer">Ouvrir dans Google Maps</a>`;
+
+        setStatus("Conversion effectuée avec succès.", "ok");
+      } catch (error) {
+        console.error(error);
+        setStatus("Erreur de conversion. Vérifiez les valeurs saisies.", "error");
+      }
+    }
+
+    async function copyGoogleEarth() {
+      const text = els.googleEarth.textContent;
+      if (!text || text === "—") {
+        setStatus("Aucun résultat à copier. Lancez d’abord la conversion.", "error");
+        return;
+      }
+
+      try {
+        await navigator.clipboard.writeText(text);
+        setStatus("Coordonnées copiées dans le presse-papiers.", "ok");
+      } catch {
+        setStatus("Impossible de copier automatiquement. Copiez le texte manuellement.", "error");
+      }
+    }
+
+    function resetForm() {
+      els.x.value = "";
+      els.y.value = "";
+      els.z.value = "";
+      els.lat.textContent = "—";
+      els.lon.textContent = "—";
+      els.googleEarth.textContent = "—";
+      els.altitude.textContent = "—";
+      els.mapLink.textContent = "—";
+      setStatus("");
+      els.x.focus();
+    }
+
+    els.convertBtn.addEventListener("click", convert);
+    els.copyBtn.addEventListener("click", copyGoogleEarth);
+    els.resetBtn.addEventListener("click", resetForm);
+
+    [els.x, els.y, els.z].forEach(input => {
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") convert();
+      });
+    });
+
+    convert();
+  </script>
+</body>
+</html>
